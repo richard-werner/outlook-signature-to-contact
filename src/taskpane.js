@@ -207,19 +207,56 @@ async function onSave() {
   try {
     const token = await getToken();
 
-    // ---- dedup on email address (primary Contacts folder) ----
+    // ---- find an existing contact by email, case-insensitively ----
+    // Exchange matches email addresses case-insensitively; we also lower-case
+    // the value we send so matching is stable regardless of the signature's
+    // casing. We keep the original casing for the stored/displayed address.
+    const emailLc = c.emailAddress.toLowerCase();
     const existing = await graph(
       token,
       "GET",
-      `/me/contacts?$filter=emailAddresses/any(a:a/address eq '${encodeURIComponent(c.emailAddress)}')&$select=id,displayName`
+      `/me/contacts?$filter=emailAddresses/any(a:a/address eq '${encodeURIComponent(emailLc)}')` +
+        `&$select=id,displayName,givenName,surname,jobTitle,companyName,businessPhones,mobilePhone`
     );
-    if (existing && existing.value && existing.value.length > 0) {
-      showResult("ok", `"${existing.value[0].displayName || c.emailAddress}" is already in your Contacts — not creating a duplicate.`);
+    const match =
+      existing && existing.value
+        ? existing.value.find((m) =>
+            (m.emailAddresses || []).some(
+              (a) => a.address && a.address.toLowerCase() === emailLc
+            )
+          ) || existing.value[0]
+        : null;
+
+    if (match) {
+      // ---- update in place: fill only fields that are currently blank, so we
+      //      never clobber edits the user made to the existing contact ----
+      const patch = {};
+      const added = [];
+      const filled = (v) => v && String(v).trim().length > 0;
+      const setIfBlank = (field, oldVal, newVal, label) => {
+        if (filled(newVal) && !filled(oldVal)) { patch[field] = newVal; added.push(label); }
+      };
+      setIfBlank("givenName", match.givenName, c.givenName, "first name");
+      setIfBlank("surname", match.surname, c.surname, "last name");
+      setIfBlank("jobTitle", match.jobTitle, c.jobTitle, "job title");
+      setIfBlank("companyName", match.companyName, c.companyName, "company");
+      setIfBlank("mobilePhone", match.mobilePhone, c.mobilePhone, "mobile phone");
+      if (c.businessPhone && !(match.businessPhones && match.businessPhones.length)) {
+        patch.businessPhones = [c.businessPhone];
+        added.push("business phone");
+      }
+
+      if (added.length === 0) {
+        showResult("ok", `"${match.displayName || c.emailAddress}" is already in your Contacts — nothing new to add.`);
+      } else {
+        await graph(token, "PATCH", `/me/contacts/${match.id}`, patch);
+        showResult("ok", `Updated "${match.displayName || c.emailAddress}" in your Contacts (added ${added.join(", ")}).`);
+      }
       btn.disabled = false;
       return;
     }
 
-    // ---- create in the primary Contacts folder ----
+    // ---- no match: create in the primary Contacts folder ----
     const payload = {
       givenName: c.givenName || undefined,
       surname: c.surname || undefined,
