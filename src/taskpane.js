@@ -7,9 +7,9 @@
 // ---- CONFIG: fill these in after you register the Azure AD app ----------
 const MSAL_CONFIG = {
   auth: {
-    clientId: "REPLACE-WITH-YOUR-AZURE-APP-CLIENT-ID",
-    // Use your tenant ID for single-tenant, or "common" for multi-tenant:
-    authority: "https://login.microsoftonline.com/REPLACE-WITH-YOUR-TENANT-ID",
+    clientId: "73d265a5-ebc9-4c01-9cf9-e4c8b68c5bb7",
+    // Single-tenant (AzureADMyOrg) — Rugs USA tenant:
+    authority: "https://login.microsoftonline.com/c5f106bd-aacf-43f1-84ac-00258e7c3638",
   },
 };
 const GRAPH_SCOPES = ["Contacts.ReadWrite"];
