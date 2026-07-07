@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Signature to Contact</title>
+
+  <!-- Office.js: required for all add-ins -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+  <!-- MSAL browser: used for Nested App Auth to call Microsoft Graph.
+       (Loaded from CDN; runs in the user's browser, not a build step.) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+
+  <link rel="stylesheet" href="taskpane.css"/>
+</head>
+<body>
+  <div id="app">
+    <h1>Save sender to Contacts</h1>
+
+    <div id="status" class="status">Reading the message…</div>
+
+    <form id="contactForm" class="hidden" onsubmit="return false;">
+      <label>First name<input id="givenName" type="text"/></label>
+      <label>Last name<input id="surname" type="text"/></label>
+      <label>Job title<input id="jobTitle" type="text"/></label>
+      <label>Company<input id="companyName" type="text"/></label>
+      <label>Email<input id="emailAddress" type="email"/></label>
+      <label>Business phone<input id="businessPhone" type="tel"/></label>
+      <label>Mobile phone<input id="mobilePhone" type="tel"/></label>
+
+      <div id="dupNotice" class="notice hidden"></div>
+
+      <div class="actions">
+        <button id="saveBtn" type="button">Save to Contacts</button>
+        <button id="rescanBtn" type="button" class="secondary">Re-read</button>
+      </div>
+    </form>
+
+    <div id="result" class="result hidden"></div>
+  </div>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>
