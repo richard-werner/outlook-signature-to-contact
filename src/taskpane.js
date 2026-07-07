@@ -13,6 +13,9 @@ const MSAL_CONFIG = {
   },
 };
 const GRAPH_SCOPES = ["Contacts.ReadWrite"];
+// Saved contacts go into this dedicated folder (created on first save, then
+// reused) instead of the default Contacts folder.
+const CONTACT_FOLDER_NAME = "Signature to Contact";
 // ------------------------------------------------------------------------
 
 let pca = null; // MSAL nestable public client, created on Office ready
@@ -207,19 +210,22 @@ async function onSave() {
   try {
     const token = await getToken();
 
-    // ---- dedup on email address ----
+    // Ensure the dedicated folder exists (created once, reused thereafter).
+    const folderId = await getOrCreateFolder(token);
+
+    // ---- dedup on email address, scoped to the folder ----
     const existing = await graph(
       token,
       "GET",
-      `/me/contacts?$filter=emailAddresses/any(a:a/address eq '${encodeURIComponent(c.emailAddress)}')&$select=id,displayName`
+      `/me/contactFolders/${folderId}/contacts?$filter=emailAddresses/any(a:a/address eq '${encodeURIComponent(c.emailAddress)}')&$select=id,displayName`
     );
     if (existing && existing.value && existing.value.length > 0) {
-      showResult("ok", `"${existing.value[0].displayName || c.emailAddress}" is already in your Contacts — not creating a duplicate.`);
+      showResult("ok", `"${existing.value[0].displayName || c.emailAddress}" is already in your "${CONTACT_FOLDER_NAME}" folder — not creating a duplicate.`);
       btn.disabled = false;
       return;
     }
 
-    // ---- create ----
+    // ---- create in the folder ----
     const payload = {
       givenName: c.givenName || undefined,
       surname: c.surname || undefined,
@@ -230,13 +236,28 @@ async function onSave() {
       businessPhones: c.businessPhone ? [c.businessPhone] : [],
       mobilePhone: c.mobilePhone || undefined,
     };
-    await graph(token, "POST", "/me/contacts", payload);
-    showResult("ok", `Saved ${c.displayName} to your Contacts.`);
+    await graph(token, "POST", `/me/contactFolders/${folderId}/contacts`, payload);
+    showResult("ok", `Saved ${c.displayName} to your "${CONTACT_FOLDER_NAME}" contacts folder.`);
   } catch (e) {
     showResult("err", "Couldn't save: " + (e && e.message ? e.message : e));
   } finally {
     btn.disabled = false;
   }
+}
+
+// Find the dedicated contacts folder by name, or create it if it doesn't exist.
+async function getOrCreateFolder(token) {
+  const name = CONTACT_FOLDER_NAME.replace(/'/g, "''"); // OData escapes ' as ''
+  const found = await graph(
+    token,
+    "GET",
+    `/me/contactFolders?$filter=displayName eq '${encodeURIComponent(name)}'&$select=id`
+  );
+  if (found && found.value && found.value.length > 0) return found.value[0].id;
+  const created = await graph(token, "POST", "/me/contactFolders", {
+    displayName: CONTACT_FOLDER_NAME,
+  });
+  return created.id;
 }
 
 async function graph(token, method, path, body) {
